@@ -296,3 +296,120 @@ def perfil_leitor(request, usuario_id):
         'total_resenhas': resenhas.count(),
         'favoritos': favoritos,
     })
+
+
+@login_required
+def adicionar_livro(request):
+    if request.method == "POST":
+        form = LivroForm(request.POST)
+
+        if form.is_valid():
+            livro = form.save(commit=False)
+            livro.criador = request.user
+            livro.save()
+
+            messages.success(request, "Livro cadastrado com sucesso!")
+            return redirect("core:explorar")
+    else:
+        form = LivroForm()
+
+    return render(request, "core/livro.html", {
+        "form": form,
+        "paises": PAISES,
+    })
+
+@login_required
+def editar_livro(request, livro_id):
+    livro = get_object_or_404(Livro, id=livro_id)
+
+    # O criador e o administrador podem editar
+    if livro.criador != request.user and not request.user.is_staff:
+        messages.error(request, "Você não tem permissão para editar este livro.")
+        return redirect('core:detalhe_livro', livro_id=livro.id)
+
+    if request.method == "POST":
+        form = LivroForm(request.POST, instance=livro)
+
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Livro atualizado com sucesso!")
+            return redirect('core:detalhe_livro', livro_id=livro.id)
+
+    else:
+        form = LivroForm(instance=livro)
+
+    return render(request, "core/livro.html", {
+        "form": form,
+        "paises": PAISES,
+        "livro": livro,
+    })
+
+@login_required
+def excluir_livro(request, livro_id):
+    if not request.user.is_staff:
+        messages.error(request, "Você não tem permissão para excluir livros.")
+        return redirect('core:explorar')
+
+    livro = get_object_or_404(Livro, id=livro_id)
+
+    if request.method == "POST":
+        livro.delete()
+        messages.success(request, "Livro excluído com sucesso!")
+        return redirect('core:explorar')
+
+    return redirect('core:detalhe_livro', livro_id=livro.id)
+
+# Detalhes do livro e publicação de resenhas
+@login_required
+def detalhe_livro(request, livro_id):
+    livro = get_object_or_404(Livro, id=livro_id)
+
+    VisualizacaoLivro.objects.get_or_create(
+        usuario=request.user,
+        livro=livro,
+        data_visualizacao=timezone.localdate()
+    )
+
+    # Verifica se o formulário foi enviado
+    if request.method == "POST":
+        form = ResenhaForm(request.POST)
+
+        if form.is_valid():
+            resenha = form.save(commit=False)
+            resenha.usuario = request.user
+            resenha.livro = livro
+            resenha.save()
+
+            messages.success(request, "Resenha publicada com sucesso!")
+            return redirect("core:detalhe_livro", livro_id=livro.id)
+
+        else:
+            messages.error(request, "Erro ao publicar resenha. Verifique os dados informados.")
+
+    else:
+        form = ResenhaForm()
+
+    # Busca as resenhas relacionadas ao livro
+    resenhas = livro.resenhas.select_related(
+        "usuario"
+    ).order_by("-data_publicacao")
+
+    return render(request, "core/detalhe_livro.html", {
+        "livro": livro,
+        "resenhas": resenhas,
+        "form": form
+    })
+
+@login_required
+def favoritar_livro(request, livro_id):
+    livro = get_object_or_404(Livro, id=livro_id)
+    perfil = request.user.perfil
+
+    if livro in perfil.livros_favoritos.all():
+        perfil.livros_favoritos.remove(livro)
+        messages.success(request, "Livro removido dos favoritos!")
+    else:
+        perfil.livros_favoritos.add(livro)
+        messages.success(request, "Livro adicionado aos favoritos!")
+
+    return redirect('core:detalhe_livro', livro_id=livro.id)
