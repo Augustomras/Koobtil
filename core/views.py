@@ -58,25 +58,128 @@ def landing(request):
         'total_usuarios': total_usuarios,
         'total_paises': total_paises,
     })
-
+@login_required
 def home(request):
-    livros = Livro.objects.all()
-    resenhas = Resenha.objects.all()
+    livros = Livro.objects.order_by('?')[:3]
+
+    livros_populares = Livro.objects.annotate(
+        total_favoritos=Count('favoritado_por')
+    ).order_by('-total_favoritos')[:5]
+
+    resenhas = Resenha.objects.select_related(
+        'usuario', 'livro'
+    ).order_by('-data_publicacao')[:5]
 
     Usuario = get_user_model()
     leitores = Usuario.objects.filter(is_active=True)
 
+    hoje = timezone.localdate()
+
+    
+    # SEQUÊNCIA DE VISUALIZAÇÃO DE LIVROS
+    datas_visualizacao = set(
+        VisualizacaoLivro.objects.filter(
+            usuario=request.user
+        ).values_list('data_visualizacao', flat=True)
+    )
+
+    sequencia = 0
+
+    if datas_visualizacao:
+        ultima_data = max(datas_visualizacao)
+
+        if ultima_data >= hoje - timedelta(days=1):
+            data_atual = ultima_data
+
+            while data_atual in datas_visualizacao:
+                sequencia += 1
+                data_atual -= timedelta(days=1)
+
+
+    desafios = [
+        {
+            'titulo': 'Crítico literário',
+            'descricao': 'Publique 5 resenhas este mês.',
+            'meta': 5,
+            'tipo': 'resenhas',
+        },
+        {
+            'titulo': 'Leitor dedicado',
+            'descricao': 'Publique 8 resenhas este mês.',
+            'meta': 8,
+            'tipo': 'resenhas',
+        },
+        {
+            'titulo': 'Explorador literário',
+            'descricao': 'Avalie livros de 3 autores diferentes.',
+            'meta': 3,
+            'tipo': 'autores',
+        },
+        {
+            'titulo': 'Voz da comunidade',
+            'descricao': 'Publique 10 resenhas este mês.',
+            'meta': 10,
+            'tipo': 'resenhas',
+        },
+    ]
+
+    desafio = desafios[(hoje.month - 1) % len(desafios)]
+
+    resenhas_mes = Resenha.objects.filter(
+        usuario=request.user,
+        data_publicacao__year=hoje.year,
+        data_publicacao__month=hoje.month
+    )
+
+    if desafio['tipo'] == 'resenhas':
+        progresso = resenhas_mes.count()
+    else:
+        progresso = resenhas_mes.values(
+            'livro__autor'
+        ).distinct().count()
+
+    porcentagem = min(
+        int((progresso / desafio['meta']) * 100),
+        100
+    )
+
+    ultimo_dia = calendar.monthrange(
+        hoje.year, hoje.month
+    )[1]
+
+    dias_restantes = ultimo_dia - hoje.day
+
     return render(request, 'core/home.html', {
         'livros': livros,
         'resenhas': resenhas,
-        'leitores': leitores
+        'leitores': leitores,
+        'desafio': desafio,
+        'progresso': progresso,
+        'porcentagem': porcentagem,
+        'dias_restantes': dias_restantes,
+        'sequencia': sequencia,
+        'livros_populares': livros_populares,
     })
 
+@login_required
 def explorar(request):
     livros = Livro.objects.all()
 
+    dificuldade = request.GET.get('dificuldade')
+
+    if dificuldade:
+        livros = livros.filter(nivel_dificuldade=dificuldade)
+
+    destaque_semana = Livro.objects.annotate(
+        total_favoritos=Count('favoritado_por')
+    ).filter(
+        total_favoritos__gt=0
+    ).order_by('-total_favoritos').first()
+
     return render(request, 'core/explorar.html', {
-        'livros': livros
+        'livros': livros,
+        'destaque_semana': destaque_semana,
+        'dificuldade_selecionada': dificuldade,
     })
 
 def perfil(request):
