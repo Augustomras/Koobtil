@@ -201,6 +201,66 @@ def perfil(request):
 
 
 
+@login_required
+def buscar_livros(request):
+    pesquisa = request.GET.get('q', '')
+
+    livros = Livro.objects.filter(
+        titulo__icontains=pesquisa
+    ) | Livro.objects.filter(
+        autor__icontains=pesquisa
+    ) | Livro.objects.filter(
+        pais_origem__icontains=pesquisa
+    )
+
+    return render(request, 'core/buscar_livros.html', {
+        'livros': livros,
+        'pesquisa': pesquisa,
+    })
+
+@login_required
+def buscar_leitores(request):
+    pesquisa = request.GET.get('q', '')
+
+    Usuario = get_user_model()
+
+    leitores = Usuario.objects.filter(
+        username__icontains=pesquisa
+    ) | Usuario.objects.filter(
+        first_name__icontains=pesquisa
+    ) | Usuario.objects.filter(
+        last_name__icontains=pesquisa
+    )
+
+    return render(request, 'core/buscar_leitores.html', {
+        'leitores': leitores,
+        'pesquisa': pesquisa,
+    })
+
+@login_required
+def buscar(request):
+    pesquisa = request.GET.get('q', '')
+
+    livros = Livro.objects.filter(
+        Q(titulo__icontains=pesquisa) |
+        Q(autor__icontains=pesquisa) |
+        Q(pais_origem__icontains=pesquisa)
+    )
+
+    Usuario = get_user_model()
+
+    leitores = Usuario.objects.filter(
+        Q(username__icontains=pesquisa) |
+        Q(first_name__icontains=pesquisa) |
+        Q(last_name__icontains=pesquisa)
+    )
+
+    return render(request, 'core/buscar.html', {
+        'livros': livros,
+        'leitores': leitores,
+        'pesquisa': pesquisa,
+    })
+
 def adicionar_livro(request):
     return render(request, 'core/livro.html')
 
