@@ -4,15 +4,17 @@
     </div>
 
     <div class="header-actions">
-        <form class="search-box" method="GET" action="{% url 'core:buscar' %}">
+        <div class="search-box">
             <i data-lucide="search"></i>
-
             <input
                 type="text"
-                name="q"
-                placeholder="Buscar livros, autores, países ou leitores..."
-                value="{{ request.GET.q }}"
+                placeholder="Buscar livros, autores, países..."
             >
-        </form>
+        </div>
+
+        <button class="btn-icon" aria-label="Notificações">
+            <i data-lucide="bell"></i>
+            <span class="notification-badge"></span>
+        </button>
     </div>
 </header>
