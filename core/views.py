@@ -182,12 +182,24 @@ def explorar(request):
         'dificuldade_selecionada': dificuldade,
     })
 
+
+@login_required
 def perfil(request):
-    livros = Livro.objects.all()
+    leitor = request.user
+    perfil = leitor.perfil
+
+    resenhas = Resenha.objects.filter(
+        usuario=leitor
+    ).select_related('livro').order_by('-data_publicacao')
 
     return render(request, 'core/perfil.html', {
-        'livros': livros
+        'leitor': leitor,
+        'perfil': perfil,
+        'resenhas': resenhas,
+        'total_resenhas': resenhas.count(),
     })
+
+
 
 def adicionar_livro(request):
     return render(request, 'core/livro.html')
@@ -199,11 +211,28 @@ def detalhe_livro(request, livro_id):
         'livro': livro
     })
 
+@login_required
 def perfil_leitor(request, usuario_id):
     Usuario = get_user_model()
     leitor = get_object_or_404(Usuario, id=usuario_id)
 
+    perfil, criado = Perfil.objects.get_or_create(
+    usuario=leitor,
+    defaults={
+        'nome_completo': leitor.get_full_name() or leitor.username
+    }
+)
+
+    resenhas = Resenha.objects.filter(
+        usuario=leitor
+    ).select_related('livro').order_by('-data_publicacao')
+
+    favoritos = perfil.livros_favoritos.all()
+
     return render(request, 'core/perfil.html', {
         'leitor': leitor,
-        'livros': Livro.objects.all()
+        'perfil': perfil,
+        'resenhas': resenhas,
+        'total_resenhas': resenhas.count(),
+        'favoritos': favoritos,
     })
