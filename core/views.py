@@ -413,3 +413,89 @@ def favoritar_livro(request, livro_id):
         messages.success(request, "Livro adicionado aos favoritos!")
 
     return redirect('core:detalhe_livro', livro_id=livro.id)
+
+# Editar resenha
+@login_required
+def editar_resenha(request, resenha_id):
+    resenha = get_object_or_404(Resenha, id=resenha_id)
+
+    if resenha.usuario != request.user:
+        messages.error(request, "Você não pode editar esta resenha.")
+        return redirect("core:detalhe_livro", livro_id=resenha.livro.id)
+
+    if request.method == "POST":
+        form = ResenhaForm(request.POST, instance=resenha)
+
+        if form.is_valid():
+            resenha_atualizada = form.save()
+
+            resenha_atualizada.refresh_from_db()
+
+            print("AVALIAÇÃO NO BANCO:", resenha_atualizada.avaliacao)
+
+            messages.success(request, "Resenha atualizada com sucesso!")
+            return redirect("core:detalhe_livro", livro_id=resenha.livro.id)
+
+        else:
+            print("ERROS DO FORMULÁRIO:", form.errors)
+            print("DADOS RECEBIDOS:", request.POST)
+
+    else:
+        form = ResenhaForm(instance=resenha)
+
+    return render(request, "core/editar_resenha.html", {
+        "form": form,
+        "resenha": resenha,
+    })
+
+# Excluir resenha
+@login_required
+def excluir_resenha(request, resenha_id):
+    resenha = get_object_or_404(Resenha, id=resenha_id)
+
+    if resenha.usuario != request.user:
+        messages.error(request, "Você não pode excluir esta resenha.")
+        return redirect("core:detalhe_livro", livro_id=resenha.livro.id)
+
+    if request.method == "POST":
+        livro_id = resenha.livro.id
+        resenha.delete()
+
+        messages.success(request, "Resenha deletada com sucesso!")
+        return redirect("core:detalhe_livro", livro_id=livro_id)
+
+    return render(request, "core/confirmar_exclusao.html", {
+        "resenha": resenha,
+    })
+
+@login_required
+@require_POST
+def denunciar_resenha(request, resenha_id):
+
+    resenha = get_object_or_404(Resenha, id=resenha_id)
+
+    if resenha.usuario == request.user:
+        return redirect('core:detalhe_livro', livro_id=resenha.livro.id)
+
+    motivo = request.POST.get('motivo')
+    descricao = request.POST.get('descricao', '')
+
+    denuncia_existente = Denuncia.objects.filter(
+        denunciante=request.user,
+        resenha=resenha
+    ).exists()
+
+    if denuncia_existente:
+        return redirect('core:detalhe_livro', livro_id=resenha.livro.id)
+
+    if motivo not in dict(Denuncia.MOTIVOS):
+        return redirect('core:detalhe_livro', livro_id=resenha.livro.id)
+
+    Denuncia.objects.create(
+        denunciante=request.user,
+        resenha=resenha,
+        motivo=motivo,
+        descricao=descricao
+    )
+
+    return redirect('core:detalhe_livro', livro_id=resenha.livro.id)
