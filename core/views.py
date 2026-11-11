@@ -499,3 +499,47 @@ def denunciar_resenha(request, resenha_id):
     )
 
     return redirect('core:detalhe_livro', livro_id=resenha.livro.id)
+
+@login_required
+def admin_denuncias(request):
+    if not request.user.is_staff:
+        return redirect('core:home')
+
+    denuncias = Denuncia.objects.filter(
+        status='pendente'
+    ).select_related(
+        'denunciante',
+        'resenha',
+        'resenha__usuario',
+        'resenha__livro'
+    ).order_by('-data_denuncia')
+
+    return render(request, 'core/admin_denuncias.html', {
+        'denuncias': denuncias
+    })
+
+@login_required
+@require_POST
+def ignorar_denuncia(request, denuncia_id):
+    if not request.user.is_staff:
+        return redirect('core:home')
+
+    denuncia = get_object_or_404(Denuncia, id=denuncia_id)
+
+    denuncia.status = 'ignorada'
+    denuncia.save()
+
+    return redirect('core:admin_denuncias')
+
+@login_required
+@require_POST
+def remover_denuncia(request, denuncia_id):
+    if not request.user.is_staff:
+        return redirect('core:home')
+
+    denuncia = get_object_or_404(Denuncia, id=denuncia_id)
+
+    resenha = denuncia.resenha
+    resenha.delete()
+
+    return redirect('core:admin_denuncias')
