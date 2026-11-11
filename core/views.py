@@ -58,6 +58,7 @@ def landing(request):
         'total_usuarios': total_usuarios,
         'total_paises': total_paises,
     })
+
 @login_required
 def home(request):
     livros = Livro.objects.order_by('?')[:3]
@@ -182,7 +183,6 @@ def explorar(request):
         'dificuldade_selecionada': dificuldade,
     })
 
-
 @login_required
 def perfil(request):
     leitor = request.user
@@ -197,104 +197,6 @@ def perfil(request):
         'perfil': perfil,
         'resenhas': resenhas,
         'total_resenhas': resenhas.count(),
-    })
-
-
-
-@login_required
-def buscar_livros(request):
-    pesquisa = request.GET.get('q', '')
-
-    livros = Livro.objects.filter(
-        titulo__icontains=pesquisa
-    ) | Livro.objects.filter(
-        autor__icontains=pesquisa
-    ) | Livro.objects.filter(
-        pais_origem__icontains=pesquisa
-    )
-
-    return render(request, 'core/buscar_livros.html', {
-        'livros': livros,
-        'pesquisa': pesquisa,
-    })
-
-@login_required
-def buscar_leitores(request):
-    pesquisa = request.GET.get('q', '')
-
-    Usuario = get_user_model()
-
-    leitores = Usuario.objects.filter(
-        username__icontains=pesquisa
-    ) | Usuario.objects.filter(
-        first_name__icontains=pesquisa
-    ) | Usuario.objects.filter(
-        last_name__icontains=pesquisa
-    )
-
-    return render(request, 'core/buscar_leitores.html', {
-        'leitores': leitores,
-        'pesquisa': pesquisa,
-    })
-
-@login_required
-def buscar(request):
-    pesquisa = request.GET.get('q', '')
-
-    livros = Livro.objects.filter(
-        Q(titulo__icontains=pesquisa) |
-        Q(autor__icontains=pesquisa) |
-        Q(pais_origem__icontains=pesquisa)
-    )
-
-    Usuario = get_user_model()
-
-    leitores = Usuario.objects.filter(
-        Q(username__icontains=pesquisa) |
-        Q(first_name__icontains=pesquisa) |
-        Q(last_name__icontains=pesquisa)
-    )
-
-    return render(request, 'core/buscar.html', {
-        'livros': livros,
-        'leitores': leitores,
-        'pesquisa': pesquisa,
-    })
-
-def adicionar_livro(request):
-    return render(request, 'core/livro.html')
-
-def detalhe_livro(request, livro_id):
-    livro = get_object_or_404(Livro, id=livro_id)
-
-    return render(request, 'core/detalhe_livro.html', {
-        'livro': livro
-    })
-
-@login_required
-def perfil_leitor(request, usuario_id):
-    Usuario = get_user_model()
-    leitor = get_object_or_404(Usuario, id=usuario_id)
-
-    perfil, criado = Perfil.objects.get_or_create(
-    usuario=leitor,
-    defaults={
-        'nome_completo': leitor.get_full_name() or leitor.username
-    }
-)
-
-    resenhas = Resenha.objects.filter(
-        usuario=leitor
-    ).select_related('livro').order_by('-data_publicacao')
-
-    favoritos = perfil.livros_favoritos.all()
-
-    return render(request, 'core/perfil.html', {
-        'leitor': leitor,
-        'perfil': perfil,
-        'resenhas': resenhas,
-        'total_resenhas': resenhas.count(),
-        'favoritos': favoritos,
     })
 
 
@@ -401,18 +303,51 @@ def detalhe_livro(request, livro_id):
     })
 
 @login_required
-def favoritar_livro(request, livro_id):
-    livro = get_object_or_404(Livro, id=livro_id)
-    perfil = request.user.perfil
+def perfil_leitor(request, usuario_id):
+    Usuario = get_user_model()
+    leitor = get_object_or_404(Usuario, id=usuario_id)
 
-    if livro in perfil.livros_favoritos.all():
-        perfil.livros_favoritos.remove(livro)
-        messages.success(request, "Livro removido dos favoritos!")
-    else:
-        perfil.livros_favoritos.add(livro)
-        messages.success(request, "Livro adicionado aos favoritos!")
+    perfil, criado = Perfil.objects.get_or_create(
+    usuario=leitor,
+    defaults={
+        'nome_completo': leitor.get_full_name() or leitor.username
+    }
+)
 
-    return redirect('core:detalhe_livro', livro_id=livro.id)
+    resenhas = Resenha.objects.filter(
+        usuario=leitor
+    ).select_related('livro').order_by('-data_publicacao')
+
+    favoritos = perfil.livros_favoritos.all()
+
+    return render(request, 'core/perfil.html', {
+        'leitor': leitor,
+        'perfil': perfil,
+        'resenhas': resenhas,
+        'total_resenhas': resenhas.count(),
+        'favoritos': favoritos,
+    })
+
+# Excluir resenha
+@login_required
+def excluir_resenha(request, resenha_id):
+    resenha = get_object_or_404(Resenha, id=resenha_id)
+
+    if resenha.usuario != request.user:
+        messages.error(request, "Você não pode excluir esta resenha.")
+        return redirect("core:detalhe_livro", livro_id=resenha.livro.id)
+
+    if request.method == "POST":
+        livro_id = resenha.livro.id
+        resenha.delete()
+
+        messages.success(request, "Resenha deletada com sucesso!")
+        return redirect("core:detalhe_livro", livro_id=livro_id)
+
+    return render(request, "core/confirmar_exclusao.html", {
+        "resenha": resenha,
+    })
+
 
 # Editar resenha
 @login_required
@@ -448,57 +383,98 @@ def editar_resenha(request, resenha_id):
         "resenha": resenha,
     })
 
-# Excluir resenha
 @login_required
-def excluir_resenha(request, resenha_id):
-    resenha = get_object_or_404(Resenha, id=resenha_id)
+def perfil(request):
+    leitor = request.user
+    perfil = leitor.perfil
 
-    if resenha.usuario != request.user:
-        messages.error(request, "Você não pode excluir esta resenha.")
-        return redirect("core:detalhe_livro", livro_id=resenha.livro.id)
+    resenhas = Resenha.objects.filter(
+        usuario=leitor
+    ).select_related('livro').order_by('-data_publicacao')
 
-    if request.method == "POST":
-        livro_id = resenha.livro.id
-        resenha.delete()
+    favoritos = perfil.livros_favoritos.all()
 
-        messages.success(request, "Resenha deletada com sucesso!")
-        return redirect("core:detalhe_livro", livro_id=livro_id)
-
-    return render(request, "core/confirmar_exclusao.html", {
-        "resenha": resenha,
+    return render(request, 'core/perfil.html', {
+        'leitor': leitor,
+        'perfil': perfil,
+        'resenhas': resenhas,
+        'total_resenhas': resenhas.count(),
+        'favoritos': favoritos,
     })
 
 @login_required
-@require_POST
-def denunciar_resenha(request, resenha_id):
+def favoritar_livro(request, livro_id):
+    livro = get_object_or_404(Livro, id=livro_id)
+    perfil = request.user.perfil
 
-    resenha = get_object_or_404(Resenha, id=resenha_id)
+    if livro in perfil.livros_favoritos.all():
+        perfil.livros_favoritos.remove(livro)
+        messages.success(request, "Livro removido dos favoritos!")
+    else:
+        perfil.livros_favoritos.add(livro)
+        messages.success(request, "Livro adicionado aos favoritos!")
 
-    if resenha.usuario == request.user:
-        return redirect('core:detalhe_livro', livro_id=resenha.livro.id)
+    return redirect('core:detalhe_livro', livro_id=livro.id)
 
-    motivo = request.POST.get('motivo')
-    descricao = request.POST.get('descricao', '')
+@login_required
+def buscar_livros(request):
+    pesquisa = request.GET.get('q', '')
 
-    denuncia_existente = Denuncia.objects.filter(
-        denunciante=request.user,
-        resenha=resenha
-    ).exists()
-
-    if denuncia_existente:
-        return redirect('core:detalhe_livro', livro_id=resenha.livro.id)
-
-    if motivo not in dict(Denuncia.MOTIVOS):
-        return redirect('core:detalhe_livro', livro_id=resenha.livro.id)
-
-    Denuncia.objects.create(
-        denunciante=request.user,
-        resenha=resenha,
-        motivo=motivo,
-        descricao=descricao
+    livros = Livro.objects.filter(
+        titulo__icontains=pesquisa
+    ) | Livro.objects.filter(
+        autor__icontains=pesquisa
+    ) | Livro.objects.filter(
+        pais_origem__icontains=pesquisa
     )
 
-    return redirect('core:detalhe_livro', livro_id=resenha.livro.id)
+    return render(request, 'core/buscar_livros.html', {
+        'livros': livros,
+        'pesquisa': pesquisa,
+    })
+
+@login_required
+def buscar_leitores(request):
+    pesquisa = request.GET.get('q', '')
+
+    Usuario = get_user_model()
+
+    leitores = Usuario.objects.filter(
+        username__icontains=pesquisa
+    ) | Usuario.objects.filter(
+        first_name__icontains=pesquisa
+    ) | Usuario.objects.filter(
+        last_name__icontains=pesquisa
+    )
+
+    return render(request, 'core/buscar_leitores.html', {
+        'leitores': leitores,
+        'pesquisa': pesquisa,
+    })
+
+@login_required
+def buscar(request):
+    pesquisa = request.GET.get('q', '')
+
+    livros = Livro.objects.filter(
+        Q(titulo__icontains=pesquisa) |
+        Q(autor__icontains=pesquisa) |
+        Q(pais_origem__icontains=pesquisa)
+    )
+
+    Usuario = get_user_model()
+
+    leitores = Usuario.objects.filter(
+        Q(username__icontains=pesquisa) |
+        Q(first_name__icontains=pesquisa) |
+        Q(last_name__icontains=pesquisa)
+    )
+
+    return render(request, 'core/buscar.html', {
+        'livros': livros,
+        'leitores': leitores,
+        'pesquisa': pesquisa,
+    })
 
 @login_required
 def admin_denuncias(request):
@@ -543,3 +519,35 @@ def remover_denuncia(request, denuncia_id):
     resenha.delete()
 
     return redirect('core:admin_denuncias')
+
+@login_required
+@require_POST
+def denunciar_resenha(request, resenha_id):
+
+    resenha = get_object_or_404(Resenha, id=resenha_id)
+
+    if resenha.usuario == request.user:
+        return redirect('core:detalhe_livro', livro_id=resenha.livro.id)
+
+    motivo = request.POST.get('motivo')
+    descricao = request.POST.get('descricao', '')
+
+    denuncia_existente = Denuncia.objects.filter(
+        denunciante=request.user,
+        resenha=resenha
+    ).exists()
+
+    if denuncia_existente:
+        return redirect('core:detalhe_livro', livro_id=resenha.livro.id)
+
+    if motivo not in dict(Denuncia.MOTIVOS):
+        return redirect('core:detalhe_livro', livro_id=resenha.livro.id)
+
+    Denuncia.objects.create(
+        denunciante=request.user,
+        resenha=resenha,
+        motivo=motivo,
+        descricao=descricao
+    )
+
+    return redirect('core:detalhe_livro', livro_id=resenha.livro.id)
