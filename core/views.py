@@ -382,11 +382,16 @@ def editar_resenha(request, resenha_id):
         "form": form,
         "resenha": resenha,
     })
-
 @login_required
 def perfil(request):
     leitor = request.user
-    perfil = leitor.perfil
+
+    perfil, criado = Perfil.objects.get_or_create(
+        usuario=leitor,
+        defaults={
+            'nome_completo': leitor.get_full_name() or leitor.username
+        }
+    )
 
     resenhas = Resenha.objects.filter(
         usuario=leitor
@@ -401,11 +406,13 @@ def perfil(request):
         'total_resenhas': resenhas.count(),
         'favoritos': favoritos,
     })
-
 @login_required
 def favoritar_livro(request, livro_id):
     livro = get_object_or_404(Livro, id=livro_id)
-    perfil = request.user.perfil
+    perfil, criado = Perfil.objects.get_or_create(
+        usuario=request.user,
+        defaults={'nome_completo': request.user.username}
+    )
 
     if livro in perfil.livros_favoritos.all():
         perfil.livros_favoritos.remove(livro)
