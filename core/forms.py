@@ -42,6 +42,7 @@ class CadastroForm(UserCreationForm):
             )
 
         return email
+    #impedir que duas contas utilizem o mesmo e-mail.
 
     def save(self, commit=True):
         usuario = super().save(commit=False)
