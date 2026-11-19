@@ -184,23 +184,6 @@ def explorar(request):
     })
 
 @login_required
-def perfil(request):
-    leitor = request.user
-    perfil = leitor.perfil
-
-    resenhas = Resenha.objects.filter(
-        usuario=leitor
-    ).select_related('livro').order_by('-data_publicacao')
-
-    return render(request, 'core/perfil.html', {
-        'leitor': leitor,
-        'perfil': perfil,
-        'resenhas': resenhas,
-        'total_resenhas': resenhas.count(),
-    })
-
-
-@login_required
 def adicionar_livro(request):
     if request.method == "POST":
         form = LivroForm(request.POST)
@@ -362,18 +345,10 @@ def editar_resenha(request, resenha_id):
         form = ResenhaForm(request.POST, instance=resenha)
 
         if form.is_valid():
-            resenha_atualizada = form.save()
-
-            resenha_atualizada.refresh_from_db()
-
-            print("AVALIAÇÃO NO BANCO:", resenha_atualizada.avaliacao)
+            form.save()
 
             messages.success(request, "Resenha atualizada com sucesso!")
             return redirect("core:detalhe_livro", livro_id=resenha.livro.id)
-
-        else:
-            print("ERROS DO FORMULÁRIO:", form.errors)
-            print("DADOS RECEBIDOS:", request.POST)
 
     else:
         form = ResenhaForm(instance=resenha)
@@ -407,6 +382,7 @@ def perfil(request):
         'favoritos': favoritos,
     })
 @login_required
+@require_POST
 def favoritar_livro(request, livro_id):
     livro = get_object_or_404(Livro, id=livro_id)
     perfil, criado = Perfil.objects.get_or_create(
@@ -524,6 +500,7 @@ def remover_denuncia(request, denuncia_id):
 
     resenha = denuncia.resenha
     resenha.delete()
+    messages.success(request, "Resenha removida com sucesso!")
 
     return redirect('core:admin_denuncias')
 
